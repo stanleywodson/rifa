@@ -1,0 +1,12 @@
+{
+  "menu": [
+    { "url": "painel", "name": "Dashboard", "icon": "menu-icon tf-icons ti ti-smart-home", "slug": "painel.dashboard" },
+    { "menuHeader": "Rifas" },
+    { "url": "painel/rifas", "name": "Minhas rifas", "icon": "menu-icon tf-icons ti ti-ticket", "slug": "painel.rifas" },
+    { "url": "painel/pedidos", "name": "Pedidos", "icon": "menu-icon tf-icons ti ti-shopping-cart", "slug": "painel.pedidos" },
+    { "url": "painel/compradores", "name": "Compradores", "icon": "menu-icon tf-icons ti ti-users", "slug": "painel.compradores" },
+    { "menuHeader": "Organização" },
+    { "url": "painel/configuracoes", "name": "Configurações", "icon": "menu-icon tf-icons ti ti-settings", "slug": "painel.configuracoes" },
+    { "url": "conta", "name": "Minha conta", "icon": "menu-icon tf-icons ti ti-user-circle", "slug": "conta" }
+  ]
+}

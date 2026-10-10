@@ -63,6 +63,7 @@ $container = (isset($configData['contentLayout']) && $configData['contentLayout'
           <div class="{{$container}} flex-grow-1 container-p-y">
             @endif
 
+            @include('_partials.saas.flash')
             @yield('content')
 
           </div>

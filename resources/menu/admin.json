@@ -1,0 +1,13 @@
+{
+  "menu": [
+    { "url": "admin", "name": "Dashboard", "icon": "menu-icon tf-icons ti ti-smart-home", "slug": "admin.dashboard" },
+    { "menuHeader": "Moderação" },
+    { "url": "admin/rifas", "name": "Rifas", "icon": "menu-icon tf-icons ti ti-ticket", "slug": "admin.rifas" },
+    { "url": "admin/organizadores", "name": "Organizadores", "icon": "menu-icon tf-icons ti ti-building-store", "slug": "admin.organizadores" },
+    { "menuHeader": "Plataforma" },
+    { "url": "admin/financeiro", "name": "Financeiro", "icon": "menu-icon tf-icons ti ti-report-money", "slug": "admin.financeiro" },
+    { "url": "admin/planos", "name": "Planos", "icon": "menu-icon tf-icons ti ti-package", "slug": "admin.planos" },
+    { "url": "admin/auditoria", "name": "Auditoria", "icon": "menu-icon tf-icons ti ti-shield-check", "slug": "admin.auditoria" },
+    { "url": "conta", "name": "Minha conta", "icon": "menu-icon tf-icons ti ti-user-circle", "slug": "conta" }
+  ]
+}

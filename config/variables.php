@@ -3,11 +3,11 @@
 return [
   "creatorName" => "Pixinvent",
   "creatorUrl" => "https://pixinvent.com",
-  "templateName" => "Vuexy",
+  "templateName" => env("APP_NAME", "Rifa SaaS"),
   "templateSuffix" => "Bootstrap Admin Template",
   "templateVersion" => "2.0.0",
   "templateFree" => false,
-  "templateDescription" => "Start your development with a Dashboard for Bootstrap 5",
+  "templateDescription" => "Rifas online com pagamento via Pix e sorteio auditável.",
   "templateKeyword" => "dashboard, bootstrap 5 dashboard, bootstrap 5 design, bootstrap 5",
   "licenseUrl" => "https://themeforest.net/licenses/standard",
   "livePreview" => "https://demos.pixinvent.com/vuexy-html-admin-template/landing/",

@@ -1330,6 +1330,19 @@ TemplateCustomizer.DIRECTIONS = [
 
 // Theme setting language
 TemplateCustomizer.LANGUAGES = {
+  pt_BR: {
+    panel_header: 'Personalizar tema',
+    panel_sub_header: 'Personalize e visualize em tempo real',
+    theming_header: 'Tema',
+    style_label: 'Estilo (modo)',
+    theme_label: 'Temas',
+    layout_header: 'Layout',
+    layout_label: 'Menu (navegação)',
+    layout_header_label: 'Tipos de cabeçalho',
+    content_label: 'Conteúdo',
+    layout_navbar_label: 'Tipo de navbar',
+    direction_label: 'Direção'
+  },
   en: {
     panel_header: 'Template Customizer',
     panel_sub_header: 'Customize and preview in real time',
