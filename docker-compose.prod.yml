@@ -1,0 +1,119 @@
+# Produção: docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+# Use scripts/deploy.sh, que também roda as migrations.
+
+x-app: &app
+    image: 'rifa-saas/app:latest'
+    build:
+        context: .
+        dockerfile: docker/production/Dockerfile
+    env_file: .env.production
+    restart: unless-stopped
+    volumes:
+        - 'app-storage:/var/www/html/storage'
+    networks:
+        - internal
+    depends_on:
+        mysql:
+            condition: service_healthy
+        redis:
+            condition: service_healthy
+    logging: &logging
+        driver: json-file
+        options:
+            max-size: '10m'
+            max-file: '5'
+
+services:
+    app:
+        <<: *app
+        environment:
+            CONTAINER_ROLE: app
+        healthcheck:
+            test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8080/up']
+            interval: 30s
+            timeout: 5s
+            retries: 3
+            start_period: 30s
+
+    queue:
+        <<: *app
+        environment:
+            CONTAINER_ROLE: queue
+        stop_grace_period: 60s
+
+    scheduler:
+        <<: *app
+        environment:
+            CONTAINER_ROLE: scheduler
+
+    caddy:
+        image: 'caddy:2-alpine'
+        restart: unless-stopped
+        ports:
+            - '80:80'
+            - '443:443'
+            - '443:443/udp'
+        environment:
+            APP_DOMAIN: '${APP_DOMAIN:?defina APP_DOMAIN em .env.production}'
+            ACME_EMAIL: '${ACME_EMAIL:?defina ACME_EMAIL em .env.production}'
+        volumes:
+            - './docker/production/Caddyfile:/etc/caddy/Caddyfile:ro'
+            - 'caddy-data:/data'
+            - 'caddy-config:/config'
+        networks:
+            - internal
+        depends_on:
+            - app
+        logging: *logging
+
+    mysql:
+        image: 'mysql:8.4'
+        restart: unless-stopped
+        command: ['--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci']
+        environment:
+            MYSQL_ROOT_PASSWORD: '${DB_ROOT_PASSWORD:?defina DB_ROOT_PASSWORD em .env.production}'
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD:?defina DB_PASSWORD em .env.production}'
+            TZ: America/Sao_Paulo
+        volumes:
+            - 'mysql-data:/var/lib/mysql'
+        networks:
+            - internal
+        healthcheck:
+            test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" --silent']
+            interval: 10s
+            timeout: 5s
+            retries: 10
+            start_period: 30s
+        logging: *logging
+
+    redis:
+        image: 'redis:7-alpine'
+        restart: unless-stopped
+        command: ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD:?defina REDIS_PASSWORD em .env.production}']
+        volumes:
+            - 'redis-data:/data'
+        networks:
+            - internal
+        healthcheck:
+            test: ['CMD-SHELL', 'redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning ping | grep PONG']
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        logging: *logging
+
+networks:
+    internal:
+        driver: bridge
+        ipam:
+            config:
+                # Faixa fixa para TRUSTED_PROXIES (o Caddy fica nesta rede)
+                - subnet: 172.28.0.0/16
+
+volumes:
+    app-storage:
+    mysql-data:
+    redis-data:
+    caddy-data:
+    caddy-config:

@@ -1,0 +1,26 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	# Uploads de imagens/documentos (nginx aceita até 25M)
+	request_body {
+		max_size 25MB
+	}
+
+	reverse_proxy app:8080 {
+		health_uri /up
+		health_interval 30s
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+www.{$APP_DOMAIN} {
+	redir https://{$APP_DOMAIN}{uri} permanent
+}
