@@ -28,7 +28,7 @@ echo "==> Migrations"
 "${COMPOSE[@]}" run --rm app php artisan migrate --force
 
 echo "==> Containers da aplicação"
-"${COMPOSE[@]}" up -d --remove-orphans app queue scheduler caddy
+"${COMPOSE[@]}" up -d --remove-orphans app queue scheduler
 
 echo "==> Aguardando health check"
 for _ in $(seq 1 30); do

@@ -28,6 +28,9 @@ services:
         <<: *app
         environment:
             CONTAINER_ROLE: app
+        # Exposto só no localhost: o proxy reverso do servidor (TLS) encaminha para esta porta
+        ports:
+            - '127.0.0.1:${APP_PORT:-8000}:8080'
         healthcheck:
             test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8080/up']
             interval: 30s
@@ -45,26 +48,6 @@ services:
         <<: *app
         environment:
             CONTAINER_ROLE: scheduler
-
-    caddy:
-        image: 'caddy:2-alpine'
-        restart: unless-stopped
-        ports:
-            - '80:80'
-            - '443:443'
-            - '443:443/udp'
-        environment:
-            APP_DOMAIN: '${APP_DOMAIN:?defina APP_DOMAIN em .env.production}'
-            ACME_EMAIL: '${ACME_EMAIL:?defina ACME_EMAIL em .env.production}'
-        volumes:
-            - './docker/production/Caddyfile:/etc/caddy/Caddyfile:ro'
-            - 'caddy-data:/data'
-            - 'caddy-config:/config'
-        networks:
-            - internal
-        depends_on:
-            - app
-        logging: *logging
 
     mysql:
         image: 'mysql:8.4'
@@ -108,12 +91,10 @@ networks:
         driver: bridge
         ipam:
             config:
-                # Faixa fixa para TRUSTED_PROXIES (o Caddy fica nesta rede)
+                # Faixa fixa para TRUSTED_PROXIES (o proxy do host chega pelo gateway desta rede)
                 - subnet: 172.28.0.0/16
 
 volumes:
     app-storage:
     mysql-data:
     redis-data:
-    caddy-data:
-    caddy-config:
