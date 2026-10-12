@@ -34,7 +34,7 @@
           <li class="mb-2"><span class="h6">E-mail:</span> <span>{{ $tenant->email }}</span></li>
           <li class="mb-2"><span class="h6">Telefone:</span> <span>{{ $tenant->phone }}</span></li>
           <li class="mb-2"><span class="h6">Página:</span> <a href="{{ route('public.tenant', $tenant) }}" target="_blank">/{{ $tenant->slug }}</a></li>
-          <li class="mb-2"><span class="h6">Recebimentos:</span> <span>{{ $tenant->hasPaymentAccount() ? $tenant->asaas_wallet_id : ($tenant->asaas_wallet_id ? 'inválido para o gateway atual (' . $tenant->payment_gateway . ')' : 'não configurado') }}</span></li>
+          <li class="mb-2"><span class="h6">Recebimentos:</span> <span>{{ $tenant->hasPaymentAccount() ? $tenant->paymentGateway()->label() . ' · ' . $tenant->paymentAccountId() : ($tenant->hasStalePaymentAccount() ? 'inválido (' . $tenant->payment_gateway . ' não habilitado ou de outro ambiente)' : 'não configurado') }}</span></li>
           <li class="mb-2"><span class="h6">Pedidos pagos:</span> <span>{{ $orders }}</span></li>
         </ul>
         <h6>Usuários</h6>

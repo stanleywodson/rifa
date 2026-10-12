@@ -7,6 +7,8 @@ use App\Http\Controllers\Organizer;
 use App\Http\Controllers\PublicSite;
 use App\Http\Controllers\Webhooks\PaymentWebhookController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /*
 |--------------------------------------------------------------------------
@@ -76,6 +78,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/configuracoes', [Organizer\SettingsController::class, 'update'])->name('configuracoes.update');
     Route::post('/configuracoes/documentos', [Organizer\SettingsController::class, 'uploadDocument'])->name('configuracoes.documents');
     Route::post('/configuracoes/recebimentos', [Organizer\SettingsController::class, 'payments'])->name('configuracoes.payments');
+    Route::delete('/configuracoes/recebimentos', [Organizer\SettingsController::class, 'disconnectPayments'])->name('configuracoes.payments.disconnect');
+    Route::get('/configuracoes/{gateway}/conectar', [Organizer\SettingsController::class, 'connectPayments'])->name('configuracoes.payments.connect');
+    // Redirect URL cadastrada na aplicação do gateway (OAuth)
+    Route::get('/configuracoes/{gateway}/retorno', [Organizer\SettingsController::class, 'connectCallback'])->name('configuracoes.payments.callback');
   });
 
   // Administração da plataforma

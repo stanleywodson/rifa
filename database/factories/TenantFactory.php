@@ -38,6 +38,21 @@ class TenantFactory extends Factory
         return $this->state(fn () => ['kyc_status' => KycStatus::Pending, 'kyc_reviewed_at' => null]);
     }
 
+    /**
+     * Conta Mercado Pago conectada via OAuth.
+     */
+    public function mercadoPago(string $userId = '123456789'): static
+    {
+        return $this->state(fn () => [
+            'payment_gateway' => 'mercadopago',
+            'mp_user_id' => $userId,
+            'mp_access_token' => 'APP_USR-seller-token',
+            'mp_refresh_token' => 'TG-seller-refresh',
+            'mp_public_key' => 'APP_USR-public-key',
+            'mp_token_expires_at' => now()->addDays(180),
+        ]);
+    }
+
     public function suspended(): static
     {
         return $this->state(fn () => ['status' => TenantStatus::Suspended]);

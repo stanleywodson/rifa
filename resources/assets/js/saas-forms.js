@@ -85,4 +85,16 @@
       }
     });
   });
+
+  // Escolha do gateway de recebimento: <input data-gateway-option> mostra o <div data-gateway-panel>
+  document.querySelectorAll('[data-gateway-option]').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+      document.querySelectorAll('[data-gateway-option]').forEach(r => {
+        r.closest('.custom-option')?.classList.toggle('checked', r.checked);
+      });
+      document.querySelectorAll('[data-gateway-panel]').forEach(panel => {
+        panel.classList.toggle('d-none', panel.dataset.gatewayPanel !== radio.value);
+      });
+    });
+  });
 })();

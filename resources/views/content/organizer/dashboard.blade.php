@@ -19,7 +19,7 @@
 @if (!$tenant->canReceivePayments())
   <div class="alert alert-danger d-flex align-items-center mb-6">
     <span class="alert-icon rounded"><i class="ti ti-building-bank"></i></span>
-    <span class="flex-grow-1">{{ $tenant->asaas_wallet_id ? 'Sua conta de recebimento foi criada em outro ambiente e não é válida.' : 'Configure a conta de recebimento.' }} Enquanto isso, as vendas das suas rifas ficam bloqueadas.</span>
+    <span class="flex-grow-1">{{ $tenant->hasStalePaymentAccount() ? 'Sua conta de recebimento foi criada em outro ambiente e não é válida.' : 'Configure a conta de recebimento.' }} Enquanto isso, as vendas das suas rifas ficam bloqueadas.</span>
     <a href="{{ route('painel.configuracoes.edit', ['aba' => 'recebimentos']) }}" class="btn btn-sm btn-danger">Configurar recebimentos</a>
   </div>
 @endif

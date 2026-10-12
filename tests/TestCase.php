@@ -13,6 +13,7 @@ use App\Domain\Tenants\TenantContext;
 use App\Models\User;
 use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 
 abstract class TestCase extends BaseTestCase
@@ -21,6 +22,8 @@ abstract class TestCase extends BaseTestCase
   {
     parent::setUp();
     Mail::fake();
+    // Nenhum teste fala com APIs reais (gateways, Loteria Federal).
+    Http::preventStrayRequests();
   }
 
   protected function seedPlans(): void

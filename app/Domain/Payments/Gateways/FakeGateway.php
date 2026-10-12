@@ -3,6 +3,7 @@
 namespace App\Domain\Payments\Gateways;
 
 use App\Domain\Orders\Models\Order;
+use App\Domain\Payments\Contracts\CreatesSubaccounts;
 use App\Domain\Payments\Contracts\PaymentGateway;
 use App\Domain\Payments\Data\PixCharge;
 use App\Domain\Payments\Data\WebhookPayload;
@@ -18,13 +19,28 @@ use Illuminate\Support\Str;
  * Gateway simulado para desenvolvimento e testes. O pagamento é confirmado
  * pelo botão "Simular pagamento" (somente ambiente local) ou nos testes.
  */
-class FakeGateway implements PaymentGateway
+class FakeGateway implements PaymentGateway, CreatesSubaccounts
 {
   public const WEBHOOK_TOKEN = 'fake-webhook-token';
 
   public function name(): string
   {
     return 'fake';
+  }
+
+  public function label(): string
+  {
+    return 'Modo de testes';
+  }
+
+  public function isConnected(Tenant $tenant): bool
+  {
+    return $tenant->payment_gateway === $this->name() && filled($tenant->asaas_wallet_id);
+  }
+
+  public function accountId(Tenant $tenant): ?string
+  {
+    return $this->isConnected($tenant) ? $tenant->asaas_wallet_id : null;
   }
 
   public function createPixCharge(Order $order, float $platformFeePercent): PixCharge

@@ -31,14 +31,23 @@ interface PaymentGateway
   public function refund(Payment $payment, string $reason): array;
 
   /**
-   * Cria a subconta do organizador; retorna [account_id, wallet_id, api_key].
-   *
-   * @return array{account_id: string, wallet_id: string, api_key: ?string}
+   * Nome exibido ao organizador.
    */
-  public function createSubaccount(Tenant $tenant, array $data): array;
+  public function label(): string;
+
+  /**
+   * A conta de recebimento do organizador está pronta para este gateway.
+   */
+  public function isConnected(Tenant $tenant): bool;
+
+  /**
+   * Identificador da conta que recebe o split (carteira, usuário do gateway...).
+   */
+  public function accountId(Tenant $tenant): ?string;
 
   /**
    * Valida a autenticidade e normaliza o webhook; null se inválido.
+   * Status null = o job consulta o status atual no gateway.
    */
   public function parseWebhook(Request $request): ?WebhookPayload;
 }

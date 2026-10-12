@@ -3,14 +3,22 @@
 namespace App\Http\Controllers\Organizer;
 
 use App\Domain\Compliance\AuditLogger;
+use App\Domain\Payments\Contracts\ConnectsAccounts;
+use App\Domain\Payments\Contracts\CreatesSubaccounts;
+use App\Domain\Payments\Contracts\PaymentGateway;
+use App\Domain\Payments\Enums\PaymentStatus;
+use App\Domain\Payments\Models\Payment;
 use App\Domain\Payments\PaymentGatewayManager;
+use App\Domain\Raffles\Enums\RaffleStatus;
 use App\Domain\Tenants\Enums\KycStatus;
 use App\Domain\Tenants\Models\KycDocument;
+use App\Domain\Tenants\Models\Tenant;
 use App\Domain\Tenants\TenantContext;
 use App\Http\Controllers\Controller;
 use App\Rules\CpfCnpj;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Throwable;
 
@@ -27,7 +35,8 @@ class SettingsController extends Controller
       'isOwner' => $request->user()->isOwnerOf($tenant),
       'documentTypes' => KycDocument::TYPES,
       'tab' => $request->query('aba', 'organizacao'),
-      'gateway' => config('saas.payment_gateway'),
+      'gateways' => app(PaymentGatewayManager::class)->available(),
+      'connectedGateway' => $tenant->paymentGateway(),
     ]);
   }
 
@@ -88,13 +97,19 @@ class SettingsController extends Controller
   }
 
   /**
-   * Cria a subconta de recebimento (split) do organizador no gateway.
+   * Cria a subconta de recebimento (split) do organizador no gateway (Asaas/simulado).
    */
   public function payments(Request $request, PaymentGatewayManager $gateways)
   {
     $tenant = $this->context->get();
     abort_unless($request->user()->isOwnerOf($tenant), 403);
-    if ($tenant->hasPaymentAccount()) {
+
+    $name = $request->input('gateway', config('saas.payment_gateway'));
+    abort_unless(is_string($name) && $gateways->isEnabled($name), 404);
+    $gateway = $gateways->driver($name);
+    abort_unless($gateway instanceof CreatesSubaccounts, 404);
+
+    if ($gateway->isConnected($tenant)) {
       return back()->with('info', 'A conta de recebimento já está configurada.');
     }
     if (blank($tenant->document)) {
@@ -117,10 +132,14 @@ class SettingsController extends Controller
       'address_number' => 'número', 'province' => 'bairro',
     ]);
 
+    if (!$this->canSwitchGateway($tenant)) {
+      return $this->switchBlocked();
+    }
+
     try {
-      $account = $gateways->default()->createSubaccount($tenant, $data);
+      $account = $gateway->createSubaccount($tenant, $data);
     } catch (Throwable $e) {
-      Log::error('Falha ao criar subconta', ['tenant' => $tenant->id, 'error' => $e->getMessage()]);
+      Log::error('Falha ao criar subconta', ['tenant' => $tenant->id, 'gateway' => $name, 'error' => $e->getMessage()]);
 
       return back()->withInput()->with('error', 'Não foi possível criar a conta de recebimento: ' . $e->getMessage());
     }
@@ -129,10 +148,135 @@ class SettingsController extends Controller
       'asaas_account_id' => $account['account_id'],
       'asaas_wallet_id' => $account['wallet_id'],
       'asaas_api_key' => $account['api_key'],
-      'payment_gateway' => $gateways->default()->name(),
+      'payment_gateway' => $gateway->name(),
     ])->save();
-    $this->audit->log('tenant.payments_configured', $tenant, null, ['wallet_id' => $account['wallet_id']]);
+    $this->audit->log('tenant.payments_configured', $tenant, null, ['gateway' => $gateway->name(), 'wallet_id' => $account['wallet_id']]);
 
     return redirect()->route('painel.configuracoes.edit', ['aba' => 'recebimentos'])->with('success', 'Conta de recebimento criada. Os valores das vendas serão repassados automaticamente.');
+  }
+
+  /**
+   * Inicia a conexão OAuth da conta do organizador (ex.: Mercado Pago).
+   */
+  public function connectPayments(Request $request, string $gateway, PaymentGatewayManager $gateways)
+  {
+    $tenant = $this->context->get();
+    abort_unless($request->user()->isOwnerOf($tenant), 403);
+    $driver = $this->oauthGateway($gateways, $gateway);
+
+    if (!$this->canSwitchGateway($tenant)) {
+      return $this->switchBlocked();
+    }
+
+    $state = Str::random(40);
+    $request->session()->put('payments_oauth', ['state' => $state, 'tenant_id' => $tenant->id, 'gateway' => $gateway]);
+
+    try {
+      return redirect()->away($driver->authorizationUrl($state, route('painel.configuracoes.payments.callback', $gateway)));
+    } catch (Throwable $e) {
+      Log::error('Gateway OAuth indisponível', ['gateway' => $gateway, 'error' => $e->getMessage()]);
+
+      return $this->toPaymentsTab()->with('error', 'Conexão indisponível no momento. Avise o suporte da plataforma.');
+    }
+  }
+
+  /**
+   * Retorno do OAuth: valida o state e troca o código pelas credenciais.
+   */
+  public function connectCallback(Request $request, string $gateway, PaymentGatewayManager $gateways)
+  {
+    $tenant = $this->context->get();
+    abort_unless($request->user()->isOwnerOf($tenant), 403);
+    $driver = $this->oauthGateway($gateways, $gateway);
+
+    $expected = $request->session()->pull('payments_oauth');
+    $valid = is_array($expected)
+      && $expected['tenant_id'] === $tenant->id
+      && $expected['gateway'] === $gateway
+      && hash_equals($expected['state'], (string) $request->query('state'));
+
+    if (!$valid) {
+      return $this->toPaymentsTab()->with('error', 'Sessão de conexão expirada ou inválida. Tente conectar novamente.');
+    }
+    if ($request->filled('error') || !$request->filled('code')) {
+      return $this->toPaymentsTab()->with('error', 'A conexão com o ' . $driver->label() . ' foi cancelada.');
+    }
+
+    try {
+      $driver->connect($tenant, (string) $request->query('code'), route('painel.configuracoes.payments.callback', $gateway));
+    } catch (Throwable $e) {
+      Log::error('Falha ao conectar conta de recebimento', ['tenant' => $tenant->id, 'gateway' => $gateway, 'error' => $e->getMessage()]);
+
+      return $this->toPaymentsTab()->with('error', 'Não foi possível conectar a conta: ' . $e->getMessage());
+    }
+
+    $this->audit->log('tenant.payments_configured', $tenant, null, ['gateway' => $gateway, 'account_id' => $driver->accountId($tenant)]);
+
+    return $this->toPaymentsTab()->with('success', 'Conta ' . $driver->label() . ' conectada. Os valores das vendas cairão direto na sua conta.');
+  }
+
+  /**
+   * Desconecta a conta OAuth. Bloqueado com rifas em andamento ou Pix pendentes,
+   * pois consultas e estornos dessas cobranças dependem das credenciais.
+   */
+  public function disconnectPayments(Request $request, PaymentGatewayManager $gateways)
+  {
+    $tenant = $this->context->get();
+    abort_unless($request->user()->isOwnerOf($tenant), 403);
+
+    $gateway = in_array($tenant->payment_gateway, PaymentGatewayManager::DRIVERS, true)
+      ? $gateways->driver($tenant->payment_gateway)
+      : null;
+    abort_unless($gateway instanceof ConnectsAccounts, 404);
+
+    if (!$this->canSwitchGateway($tenant)) {
+      return $this->switchBlocked();
+    }
+
+    $accountId = $gateway->accountId($tenant);
+    $gateway->disconnect($tenant);
+    $this->audit->log('tenant.payments_disconnected', $tenant, ['gateway' => $gateway->name(), 'account_id' => $accountId], null);
+
+    return $this->toPaymentsTab()->with('success', 'Conta ' . $gateway->label() . ' desconectada.');
+  }
+
+  protected function oauthGateway(PaymentGatewayManager $gateways, string $name): ConnectsAccounts&PaymentGateway
+  {
+    abort_unless($gateways->isEnabled($name), 404);
+    $driver = $gateways->driver($name);
+    abort_unless($driver instanceof ConnectsAccounts, 404);
+
+    return $driver;
+  }
+
+  /**
+   * Trocar de gateway com vendas em andamento deixaria cobranças sem credenciais
+   * para conciliação/estorno: só é permitido sem rifas ativas nem Pix pendentes.
+   */
+  protected function canSwitchGateway(Tenant $tenant): bool
+  {
+    if (!$tenant->hasPaymentAccount()) {
+      return true;
+    }
+
+    $activeRaffles = $tenant->raffles()->withoutGlobalScopes()
+      ->whereIn('status', [RaffleStatus::Published, RaffleStatus::SalesClosed, RaffleStatus::Drawn])
+      ->exists();
+    $pendingPayments = Payment::query()
+      ->where('status', PaymentStatus::Pending)
+      ->whereHas('order', fn($q) => $q->withoutGlobalScopes()->where('tenant_id', $tenant->id))
+      ->exists();
+
+    return !$activeRaffles && !$pendingPayments;
+  }
+
+  protected function switchBlocked()
+  {
+    return $this->toPaymentsTab()->with('error', 'Não é possível trocar a conta de recebimento com rifas em andamento ou Pix aguardando pagamento.');
+  }
+
+  protected function toPaymentsTab()
+  {
+    return redirect()->route('painel.configuracoes.edit', ['aba' => 'recebimentos']);
   }
 }

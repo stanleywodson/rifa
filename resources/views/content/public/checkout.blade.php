@@ -56,8 +56,9 @@ $total = $quantity * $raffle->price_cents;
                 <input type="text" id="cpf" name="cpf" data-mask="cpf" class="form-control @error('cpf') is-invalid @enderror" value="{{ old('cpf') }}" placeholder="000.000.000-00" required>
               </div>
               <div class="col-md-6">
-                <label class="form-label" for="email">E-mail <small class="text-muted">(opcional, para receber o comprovante)</small></label>
-                <input type="email" id="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" autocomplete="email">
+                @php $emailRequired = $raffle->tenant->paymentGateway()?->name() === 'mercadopago'; @endphp
+                <label class="form-label" for="email">E-mail @unless ($emailRequired)<small class="text-muted">(opcional, para receber o comprovante)</small>@endunless</label>
+                <input type="email" id="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" autocomplete="email" @required($emailRequired)>
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="birthdate">Data de nascimento</label>

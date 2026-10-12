@@ -37,7 +37,13 @@ return [
   | Pagamentos
   |--------------------------------------------------------------------------
   */
-  'payment_gateway' => env('PAYMENT_GATEWAY', 'fake'), // fake | asaas
+  // Gateway padrão (fake | asaas | mercadopago). Com "fake", todos os organizadores
+  // recebem pelo gateway simulado, sem precisar conectar uma conta.
+  'payment_gateway' => env('PAYMENT_GATEWAY', 'fake'),
+
+  // Gateways que o organizador pode escolher em Configurações → Recebimentos,
+  // além do padrão. Ex.: PAYMENT_GATEWAYS=asaas,mercadopago
+  'payment_gateways' => array_values(array_filter(array_map('trim', explode(',', (string) env('PAYMENT_GATEWAYS', ''))))),
 
   'asaas' => [
     'env' => env('ASAAS_ENV', 'sandbox'),
@@ -46,6 +52,24 @@ return [
     'base_url' => env('ASAAS_ENV', 'sandbox') === 'production'
       ? 'https://api.asaas.com/v3'
       : 'https://api-sandbox.asaas.com/v3',
+  ],
+
+  // Mercado Pago (modelo marketplace): o organizador conecta a própria conta via
+  // OAuth; a cobrança é criada com o token dele e a taxa vai como application_fee.
+  'mercadopago' => [
+    'env' => env('MERCADOPAGO_ENV', 'sandbox'),
+    // Pede token "TEST-" no OAuth (test_token=true). Só serve para contas reais em modo
+    // de teste; com usuários de teste (recomendado) o Mercado Pago usa credenciais de produção.
+    'test_token' => (bool) env('MERCADOPAGO_TEST_TOKEN', false),
+    // Fora de produção: e-mail do comprador de teste usado como pagador em todas as
+    // cobranças (o Mercado Pago recusa e-mail real com credenciais de teste).
+    'test_payer_email' => env('MERCADOPAGO_TEST_PAYER_EMAIL'),
+    'client_id' => env('MERCADOPAGO_CLIENT_ID'),
+    'client_secret' => env('MERCADOPAGO_CLIENT_SECRET'),
+    // Assinatura secreta dos webhooks (Suas integrações → Webhooks)
+    'webhook_secret' => env('MERCADOPAGO_WEBHOOK_SECRET'),
+    'base_url' => 'https://api.mercadopago.com',
+    'auth_url' => 'https://auth.mercadopago.com.br/authorization',
   ],
 
   /*

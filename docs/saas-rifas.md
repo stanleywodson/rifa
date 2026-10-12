@@ -37,7 +37,7 @@ app/Domain/
   Raffles/        Raffle, RafflePrize, RaffleMedia, RaffleStateMachine, RaffleReviewService, jobs
   Tickets/        Ticket, TicketReservationService (reserva atômica, aleatórios, grade)
   Orders/         Customer, Order, OrderItem, CheckoutService, ReleaseExpiredReservationsJob
-  Payments/       PaymentGateway (contrato), AsaasGateway, FakeGateway, confirmação, estorno, webhooks, conciliação
+  Payments/       PaymentGateway (contrato), AsaasGateway, MercadoPagoGateway, FakeGateway, confirmação, estorno, webhooks, conciliação
   Draws/          Draw, DrawService (Federal, commit-reveal, manual), LoteriaFederalClient, ata em PDF
   Compliance/     AuditLog (somente inserção, hash encadeado), AuditLogger
   Notifications/  Mailables em fila + notifications_log
@@ -71,6 +71,37 @@ resources/assets/js/saas-*.js
    com o mesmo token de autenticação (header `asaas-access-token`). Em desenvolvimento use `sail share` ou ngrok.
 4. Cada organizador cria a subconta em **Configurações → Recebimentos**; as cobranças saem com split
    (`100 − taxa`% para a carteira do organizador).
+
+## Mercado Pago (split marketplace)
+
+O organizador **conecta a própria conta** Mercado Pago via OAuth; a cobrança Pix é criada com o token dele e a taxa
+da plataforma vai como `application_fee` — o restante cai direto na conta do organizador.
+
+1. Em [Suas integrações](https://www.mercadopago.com.br/developers/panel/app) crie uma aplicação (pagamentos online,
+   marketplace/split) e cadastre a **Redirect URL**: `https://<seu-dominio>/painel/configuracoes/mercadopago/retorno`.
+2. Em **Webhooks** da aplicação, aponte para `https://<seu-dominio>/webhooks/payments/mercadopago`, evento
+   *Pagamentos*, e copie a **assinatura secreta**.
+3. `.env`: `PAYMENT_GATEWAYS=mercadopago` (ou `asaas,mercadopago` junto com `PAYMENT_GATEWAY=asaas`),
+   `MERCADOPAGO_ENV=sandbox`, `MERCADOPAGO_CLIENT_ID`, `MERCADOPAGO_CLIENT_SECRET`, `MERCADOPAGO_WEBHOOK_SECRET`.
+   Depois de alterar o `.env`, reinicie a fila: `sail artisan queue:restart`.
+4. Em **Configurações → Recebimentos** o organizador escolhe o gateway; no Mercado Pago clica em *Conectar*. A conta
+   precisa ter chave Pix. Para testar, use [usuários de teste](https://www.mercadopago.com.br/developers/pt/docs/your-integrations/test/accounts)
+   (vendedor conecta, comprador paga). No marketplace, **a aplicação também precisa ser criada por um usuário de
+   teste** (o "marketplace"); aplicação de conta real + vendedor de teste resulta em `user_allowed_only_in_test`.
+   Contas de teste usam as credenciais de produção; `MERCADOPAGO_TEST_TOKEN=true` só para testar com conta real.
+   O pagador precisa ser o comprador de teste: defina `MERCADOPAGO_TEST_PAYER_EMAIL` (ignorado em produção);
+   e-mail real resulta em `Unauthorized use of live credentials`.
+
+Detalhes:
+
+- O webhook só avisa a mudança: o status é sempre **consultado na API** com o token do organizador, então um aviso
+  forjado não confirma pagamento. Com `MERCADOPAGO_WEBHOOK_SECRET` a assinatura `x-signature` é obrigatória
+  (sem o segredo, os avisos só são aceitos fora de produção).
+- O Pix do Mercado Pago tem validade mínima de 30 min; a reserva continua com `RAFFLE_RESERVATION_TTL` e a cobrança é
+  cancelada quando a reserva expira.
+- O e-mail do comprador é obrigatório no checkout de organizadores que recebem pelo Mercado Pago.
+- Tokens OAuth valem 180 dias: são renovados antes de cobrar e diariamente (`RefreshMercadoPagoTokensJob`).
+- Trocar/desconectar a conta só é permitido sem rifas em andamento nem Pix pendentes.
 
 > Vendas reais dependem do parecer jurídico (seção 2 do plano). `RAFFLE_SALES_ENABLED=false` mantém as páginas
 > públicas, mas bloqueia reservas e cobranças.

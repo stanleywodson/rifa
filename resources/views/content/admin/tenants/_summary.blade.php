@@ -8,4 +8,4 @@
 <p class="mb-1">KYC: {!! $tenant->kyc_status->badge() !!}</p>
 <p class="mb-1">Status: {!! $tenant->status->badge() !!}</p>
 <p class="mb-1">Plano: {{ $tenant->plan?->name ?? '—' }} · taxa {{ $tenant->feePercent() }}%</p>
-<p class="mb-0">Recebimentos: {{ $tenant->hasPaymentAccount() ? 'configurado' : 'pendente' }}</p>
+<p class="mb-0">Recebimentos: {{ $tenant->hasPaymentAccount() ? 'configurado (' . $tenant->paymentGateway()->label() . ')' : 'pendente' }}</p>

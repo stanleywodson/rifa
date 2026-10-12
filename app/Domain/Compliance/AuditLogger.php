@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 class AuditLogger
 {
   /** Campos nunca gravados na trilha. */
-  protected const SENSITIVE = ['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes', 'asaas_api_key', 'seed_encrypted'];
+  protected const SENSITIVE = ['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes', 'asaas_api_key', 'mp_access_token', 'mp_refresh_token', 'seed_encrypted'];
 
   public function __construct(protected TenantContext $context) {}
 

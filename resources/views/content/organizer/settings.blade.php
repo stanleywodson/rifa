@@ -118,39 +118,91 @@
         <div class="card mb-6">
           <div class="card-header"><h5 class="card-title mb-0">Conta de recebimento (split Pix)</h5></div>
           <div class="card-body">
-            @if ($tenant->asaas_wallet_id && !$tenant->hasPaymentAccount())
-              <div class="alert alert-warning">A conta de recebimento atual foi criada em outro ambiente ({{ $tenant->payment_gateway ?? 'desconhecido' }}) e não é válida no gateway configurado. Crie a conta novamente abaixo.</div>
+            @if ($tenant->hasStalePaymentAccount())
+              <div class="alert alert-warning">A conta de recebimento atual ({{ $tenant->payment_gateway }}) foi criada em outro ambiente ou em um gateway desativado e não é válida. Configure a conta novamente abaixo.</div>
             @endif
-            @if ($tenant->hasPaymentAccount())
-              <div class="alert alert-success d-flex align-items-center mb-0">
+
+            @if ($connectedGateway)
+              <div class="alert alert-success d-flex align-items-center">
                 <span class="alert-icon rounded"><i class="ti ti-building-bank"></i></span>
-                <span>Conta configurada. Cada venda é dividida automaticamente: {{ 100 - $tenant->feePercent() }}% para você e {{ $tenant->feePercent() }}% de taxa da plataforma.<br><small class="text-muted">Carteira {{ $tenant->asaas_wallet_id }}</small></span>
+                <span class="flex-grow-1">
+                  Recebendo pelo <strong>{{ $connectedGateway->label() }}</strong>. Cada venda é dividida automaticamente: {{ 100 - $tenant->feePercent() }}% para você e {{ $tenant->feePercent() }}% de taxa da plataforma.<br>
+                  <small class="text-muted">{{ $connectedGateway->name() === 'mercadopago' ? 'Conta Mercado Pago' : 'Carteira' }} {{ $connectedGateway->accountId($tenant) }}</small>
+                </span>
+                @if ($isOwner && $connectedGateway instanceof \App\Domain\Payments\Contracts\ConnectsAccounts)
+                  <form method="POST" action="{{ route('painel.configuracoes.payments.disconnect') }}" data-confirm="Desconectar a conta {{ $connectedGateway->label() }}? As vendas ficarão bloqueadas até configurar outra conta.">
+                    @csrf @method('DELETE')
+                    <button class="btn btn-sm btn-label-danger">Desconectar</button>
+                  </form>
+                @endif
               </div>
             @else
-              <p>As vendas são cobradas via Pix e o valor é repassado diretamente para a sua subconta no gateway {{ $gateway === 'asaas' ? 'Asaas' : '(modo de testes)' }} — a plataforma não retém o dinheiro do prêmio.</p>
-              @if ($isOwner)
-                <form method="POST" action="{{ route('painel.configuracoes.payments') }}" class="row g-6">
-                  @csrf
-                  <div class="col-md-6"><label class="form-label" for="pay_email">E-mail da conta</label><input type="email" class="form-control" id="pay_email" name="email" value="{{ old('email', $tenant->email) }}" required></div>
-                  <div class="col-md-6"><label class="form-label" for="pay_phone">Celular</label><input type="text" class="form-control" id="pay_phone" name="phone" data-mask="phone" value="{{ old('phone', $tenant->phone) }}" required></div>
-                  @if (strlen((string) $tenant->document) === 14)
-                    <div class="col-md-6">
-                      <label class="form-label" for="company_type">Tipo de empresa</label>
-                      <select class="form-select" id="company_type" name="company_type">
-                        @foreach (['ASSOCIATION' => 'Associação / ONG / Igreja', 'MEI' => 'MEI', 'LIMITED' => 'Limitada', 'INDIVIDUAL' => 'Individual'] as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
-                      </select>
+              <p>As vendas são cobradas via Pix e o valor é repassado diretamente para a sua conta no gateway escolhido — a plataforma não retém o dinheiro do prêmio.</p>
+            @endif
+
+            @php $options = collect($gateways)->reject(fn($g) => $connectedGateway && $g->name() === $connectedGateway->name()); @endphp
+            @if ($isOwner && $options->isNotEmpty())
+              @if ($connectedGateway)
+                <h6 class="mt-6 mb-2">Trocar a conta de recebimento</h6>
+                <p class="text-muted small">Disponível apenas sem rifas em andamento ou Pix aguardando pagamento.</p>
+              @endif
+              @php $selected = old('gateway', $options->keys()->first()); @endphp
+              @if ($options->count() > 1)
+                <div class="row g-4 mb-6">
+                  @foreach ($options as $name => $option)
+                    <div class="col-md">
+                      <div class="form-check custom-option custom-option-icon {{ $selected === $name ? 'checked' : '' }}">
+                        <label class="form-check-label custom-option-content" for="gateway_{{ $name }}">
+                          <span class="custom-option-body">
+                            <i class="ti {{ ['mercadopago' => 'ti-wallet', 'fake' => 'ti-flask'][$name] ?? 'ti-building-bank' }} ti-28px"></i>
+                            <span class="custom-option-title">{{ $option->label() }}</span>
+                            <small>{{ $option instanceof \App\Domain\Payments\Contracts\ConnectsAccounts ? 'Conecte a sua conta existente' : 'Criamos uma subconta para você' }}</small>
+                          </span>
+                          <input name="gateway_option" class="form-check-input" type="radio" value="{{ $name }}" id="gateway_{{ $name }}" data-gateway-option @checked($selected === $name)>
+                        </label>
+                      </div>
+                    </div>
+                  @endforeach
+                </div>
+              @endif
+
+              @foreach ($options as $name => $option)
+                <div data-gateway-panel="{{ $name }}" class="{{ $selected === $name ? '' : 'd-none' }}">
+                  @if ($option instanceof \App\Domain\Payments\Contracts\ConnectsAccounts)
+                    <div class="d-flex flex-column flex-md-row align-items-md-center gap-4">
+                      <div class="flex-grow-1">
+                        <h6 class="mb-1">{{ $option->label() }}</h6>
+                        <p class="mb-0">Você será levado ao {{ $option->label() }} para autorizar a plataforma. As vendas caem direto na sua conta e a taxa de {{ $tenant->feePercent() }}% é descontada automaticamente (tarifa de marketplace). É preciso ter uma chave Pix cadastrada na conta.</p>
+                      </div>
+                      <a href="{{ route('painel.configuracoes.payments.connect', $name) }}" class="btn btn-primary text-nowrap"><i class="ti ti-plug-connected me-1"></i>Conectar com {{ $option->label() }}</a>
                     </div>
                   @else
-                    <div class="col-md-6"><label class="form-label" for="birth_date">Data de nascimento</label><input type="date" class="form-control" id="birth_date" name="birth_date" value="{{ old('birth_date') }}"></div>
+                    <form method="POST" action="{{ route('painel.configuracoes.payments') }}" class="row g-6">
+                      @csrf
+                      <input type="hidden" name="gateway" value="{{ $name }}">
+                      @if ($name === 'fake')<div class="col-12"><div class="alert alert-info mb-0">Modo de testes: nenhuma conta real é criada.</div></div>@endif
+                      <div class="col-md-6"><label class="form-label" for="pay_email_{{ $name }}">E-mail da conta</label><input type="email" class="form-control" id="pay_email_{{ $name }}" name="email" value="{{ old('email', $tenant->email) }}" required></div>
+                      <div class="col-md-6"><label class="form-label" for="pay_phone_{{ $name }}">Celular</label><input type="text" class="form-control" id="pay_phone_{{ $name }}" name="phone" data-mask="phone" value="{{ old('phone', $tenant->phone) }}" required></div>
+                      @if (strlen((string) $tenant->document) === 14)
+                        <div class="col-md-6">
+                          <label class="form-label" for="company_type_{{ $name }}">Tipo de empresa</label>
+                          <select class="form-select" id="company_type_{{ $name }}" name="company_type">
+                            @foreach (['ASSOCIATION' => 'Associação / ONG / Igreja', 'MEI' => 'MEI', 'LIMITED' => 'Limitada', 'INDIVIDUAL' => 'Individual'] as $v => $l)<option value="{{ $v }}" @selected(old('company_type') === $v)>{{ $l }}</option>@endforeach
+                          </select>
+                        </div>
+                      @else
+                        <div class="col-md-6"><label class="form-label" for="birth_date_{{ $name }}">Data de nascimento</label><input type="date" class="form-control" id="birth_date_{{ $name }}" name="birth_date" value="{{ old('birth_date') }}"></div>
+                      @endif
+                      <div class="col-md-6"><label class="form-label" for="income_value_{{ $name }}">Faturamento/renda mensal (R$)</label><input type="number" step="0.01" class="form-control" id="income_value_{{ $name }}" name="income_value" value="{{ old('income_value') }}" required></div>
+                      <div class="col-md-4"><label class="form-label" for="postal_code_{{ $name }}">CEP</label><input type="text" class="form-control" id="postal_code_{{ $name }}" name="postal_code" data-mask="cep" value="{{ old('postal_code') }}" required></div>
+                      <div class="col-md-6"><label class="form-label" for="address_{{ $name }}">Endereço</label><input type="text" class="form-control" id="address_{{ $name }}" name="address" value="{{ old('address') }}" required></div>
+                      <div class="col-md-2"><label class="form-label" for="address_number_{{ $name }}">Número</label><input type="text" class="form-control" id="address_number_{{ $name }}" name="address_number" value="{{ old('address_number') }}" required></div>
+                      <div class="col-md-6"><label class="form-label" for="province_{{ $name }}">Bairro</label><input type="text" class="form-control" id="province_{{ $name }}" name="province" value="{{ old('province') }}" required></div>
+                      <div class="col-12"><button class="btn btn-primary">Criar conta de recebimento {{ $option->label() }}</button></div>
+                    </form>
                   @endif
-                  <div class="col-md-6"><label class="form-label" for="income_value">Faturamento/renda mensal (R$)</label><input type="number" step="0.01" class="form-control" id="income_value" name="income_value" value="{{ old('income_value') }}" required></div>
-                  <div class="col-md-4"><label class="form-label" for="postal_code">CEP</label><input type="text" class="form-control" id="postal_code" name="postal_code" data-mask="cep" value="{{ old('postal_code') }}" required></div>
-                  <div class="col-md-6"><label class="form-label" for="address">Endereço</label><input type="text" class="form-control" id="address" name="address" value="{{ old('address') }}" required></div>
-                  <div class="col-md-2"><label class="form-label" for="address_number">Número</label><input type="text" class="form-control" id="address_number" name="address_number" value="{{ old('address_number') }}" required></div>
-                  <div class="col-md-6"><label class="form-label" for="province">Bairro</label><input type="text" class="form-control" id="province" name="province" value="{{ old('province') }}" required></div>
-                  <div class="col-12"><button class="btn btn-primary">Criar conta de recebimento</button></div>
-                </form>
-              @endif
+                </div>
+              @endforeach
             @endif
           </div>
         </div>

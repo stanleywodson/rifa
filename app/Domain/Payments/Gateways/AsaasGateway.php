@@ -3,6 +3,7 @@
 namespace App\Domain\Payments\Gateways;
 
 use App\Domain\Orders\Models\Order;
+use App\Domain\Payments\Contracts\CreatesSubaccounts;
 use App\Domain\Payments\Contracts\PaymentGateway;
 use App\Domain\Payments\Data\PixCharge;
 use App\Domain\Payments\Data\WebhookPayload;
@@ -21,13 +22,28 @@ use Illuminate\Support\Facades\Http;
  *
  * @see https://docs.asaas.com/reference
  */
-class AsaasGateway implements PaymentGateway
+class AsaasGateway implements PaymentGateway, CreatesSubaccounts
 {
   public function __construct(protected array $config) {}
 
   public function name(): string
   {
     return 'asaas';
+  }
+
+  public function label(): string
+  {
+    return 'Asaas';
+  }
+
+  public function isConnected(Tenant $tenant): bool
+  {
+    return $tenant->payment_gateway === $this->name() && filled($tenant->asaas_wallet_id);
+  }
+
+  public function accountId(Tenant $tenant): ?string
+  {
+    return $this->isConnected($tenant) ? $tenant->asaas_wallet_id : null;
   }
 
   protected function http(): PendingRequest
@@ -86,7 +102,7 @@ class AsaasGateway implements PaymentGateway
       'externalReference' => $order->code,
     ];
 
-    if ($tenant->hasPaymentAccount()) {
+    if ($this->isConnected($tenant)) {
       $payload['split'] = [[
         'walletId' => $tenant->asaas_wallet_id,
         'percentualValue' => round(100 - $platformFeePercent, 2),

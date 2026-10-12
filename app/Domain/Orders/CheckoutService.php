@@ -115,8 +115,10 @@ class CheckoutService
 
   protected function createCharge(Order $order): Payment
   {
-    $gateway = $this->gateways->default();
-    $fee = $order->raffle->tenant->feePercent();
+    $tenant = $order->raffle->tenant;
+    $gateway = $this->gateways->forTenant($tenant)
+      ?? throw new CheckoutUnavailable('Este organizador não está habilitado para receber pagamentos.');
+    $fee = $tenant->feePercent();
     $charge = $gateway->createPixCharge($order, $fee);
 
     $payment = Payment::create([
@@ -134,7 +136,7 @@ class CheckoutService
     $platform = (int) round($order->total_cents * $fee / 100);
     $payment->splits()->createMany([
       ['recipient' => 'platform', 'amount_cents' => $platform],
-      ['recipient' => 'organizer', 'wallet_id' => $order->raffle->tenant->hasPaymentAccount() ? $order->raffle->tenant->asaas_wallet_id : null, 'amount_cents' => $order->total_cents - $platform],
+      ['recipient' => 'organizer', 'wallet_id' => $gateway->accountId($tenant), 'amount_cents' => $order->total_cents - $platform],
     ]);
 
     return $payment;

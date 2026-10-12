@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Domain\Raffles\Models\Raffle;
 use App\Rules\CpfCnpj;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class CheckoutRequest extends FormRequest
 {
@@ -37,11 +39,21 @@ class CheckoutRequest extends FormRequest
       'name' => ['required', 'string', 'min:3', 'max:120'],
       'cpf' => ['required', CpfCnpj::cpf()],
       'phone' => ['required', 'digits_between:10,11'],
-      'email' => ['nullable', 'email:rfc', 'max:150'],
+      'email' => [Rule::requiredIf(fn() => $this->requiresEmail()), 'nullable', 'email:rfc', 'max:150'],
       'birthdate' => ['required', 'date', 'before_or_equal:' . now()->subYears(config('saas.minimum_age'))->toDateString()],
       'accept_terms' => ['accepted'],
       'adult' => ['accepted'],
     ];
+  }
+
+  /**
+   * O Mercado Pago exige o e-mail do pagador na cobrança Pix.
+   */
+  public function requiresEmail(): bool
+  {
+    $raffle = $this->route('raffle');
+
+    return $raffle instanceof Raffle && $raffle->tenant?->paymentGateway()?->name() === 'mercadopago';
   }
 
   public function messages(): array
