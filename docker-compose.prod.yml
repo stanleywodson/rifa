@@ -62,7 +62,7 @@ services:
         volumes:
             - 'mysql-data:/var/lib/mysql'
         ports:
-            - '127.0.0.1:3010:3306' # exposto só para debug, não use em produção
+            - '127.0.0.1:3308:3306' # exposto só para debug, não use em produção
         networks:
             - internal
         healthcheck:
