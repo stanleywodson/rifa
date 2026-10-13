@@ -21,7 +21,8 @@ class PublicPagesTest extends TestCase
     $this->get(route('public.tenant', $tenant->slug))->assertOk()->assertSee($raffle->title);
     $this->get(route('public.raffle', [$tenant->slug, $raffle->slug]))->assertOk()
       ->assertSee('Escolha seus números')->assertSee('og:title', false);
-    $this->get(route('public.checkout', [$tenant->slug, $raffle->slug, 'numeros' => '1,2']))->assertOk()->assertSee('Gerar Pix');
+    $this->get(route('public.checkout', [$tenant->slug, $raffle->slug, 'numeros' => '12,3,7']))->assertOk()->assertSee('Gerar Pix')
+      ->assertSee('name="numbers" value="3,7,12"', false);
     $this->get(route('public.my-tickets'))->assertOk();
     $this->get(route('login'))->assertOk();
     $this->get(route('register'))->assertOk();

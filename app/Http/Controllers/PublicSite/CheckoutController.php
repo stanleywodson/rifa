@@ -20,7 +20,7 @@ class CheckoutController extends Controller
     }
 
     $numbers = collect(explode(',', (string) $request->query('numeros')))
-      ->map(fn($n) => trim($n))->filter(fn($n) => $n !== '' && ctype_digit($n))->map('intval')->unique()->sort()->values();
+      ->map(fn($n) => trim($n))->filter(fn($n) => $n !== '' && ctype_digit($n))->map(fn($n) => (int) $n)->unique()->sort()->values();
     $quantity = $numbers->isEmpty() ? max((int) $request->query('quantidade', $raffle->min_numbers_per_order), 1) : $numbers->count();
 
     return view('content.public.checkout', [
