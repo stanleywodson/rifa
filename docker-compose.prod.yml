@@ -61,6 +61,8 @@ services:
             TZ: America/Sao_Paulo
         volumes:
             - 'mysql-data:/var/lib/mysql'
+        ports:
+            - '127.0.0.1:3010:3306' # exposto só para debug, não use em produção
         networks:
             - internal
         healthcheck:

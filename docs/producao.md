@@ -124,6 +124,20 @@ dc exec app php artisan down           # manutenção (down/up)
 Após alterar `.env.production`, recrie os containers (`dc up -d app queue scheduler`) — o cache de configuração
 é regenerado no start.
 
+## Problemas comuns
+
+**`Access denied for user 'rifa'@...`** — o MySQL só aplica `MYSQL_*` (usuário e senhas) na **primeira** subida,
+quando o volume `mysql-data` está vazio. Se o `.env.production` foi editado depois disso, as senhas do volume
+ficaram as antigas. Em instalação nova (banco vazio), recrie o volume:
+
+```bash
+dc down && docker volume rm rifa_mysql-data && scripts/deploy.sh --no-pull
+```
+
+Com dados, altere a senha pelo root: `ALTER USER 'rifa'@'%' IDENTIFIED BY '<nova>';`.
+Gere senhas só com letras e números (`openssl rand -hex 24`) — `$`, `#`, aspas e espaços são interpretados
+pelo Compose e pelo parser do `.env`.
+
 ## Checklist antes de abrir vendas
 
 - [ ] `APP_DEBUG=false`, `APP_ENV=production`, `APP_URL` com `https://`

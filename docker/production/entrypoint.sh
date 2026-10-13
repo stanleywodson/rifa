@@ -13,6 +13,11 @@ if [ $# -gt 0 ]; then
     exec su-exec www-data "$@"
 fi
 
+if [ -z "$APP_KEY" ]; then
+    echo "APP_KEY vazio em .env.production. Gere com: php artisan key:generate --show" >&2
+    exit 1
+fi
+
 # Caches gerados com as variáveis de ambiente do container (config, rotas, views, eventos).
 su-exec www-data php artisan optimize
 
